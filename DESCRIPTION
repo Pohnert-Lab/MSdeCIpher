@@ -9,6 +9,7 @@ Encoding: UTF-8
 LazyData: true
 Imports:
 	DT (>= 0.14),
+	readMzXmlData (>= 2.8.1),
 	shiny (>= 1.5.0),
 	stringr (>= 1.4.0),
 	rcdk (>= 3.4.7.2),
