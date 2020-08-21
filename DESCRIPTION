@@ -1,0 +1,20 @@
+Package: MSdeCIpher
+Title: Molecular ion finder
+Version: 0.1
+Author: Daniel Stettin <daniel.stettin@uni-jena.de> [aut, cre] (<https://orcid.org/0000-0001-5236-8876>)
+Description: Combines separate MS datasets measured with different ionization techniques and to match fragment spectra to molecular ions belonging to the same compounds. Devoloped for matching high resolution GC-MS EI to CI datasets.
+Depends: R (>= 3.6.1)
+License: AGPL-3 | file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports:
+	DT (>= 0.14),
+	shiny (>= 1.5.0),
+	stringr (>= 1.4.0),
+	rcdk (>= 3.4.7.2),
+	zip (>= 2.0.4)
+RoxygenNote: 7.1.1
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
