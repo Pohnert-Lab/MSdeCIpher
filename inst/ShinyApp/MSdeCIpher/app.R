@@ -23,6 +23,7 @@ ui <- fluidPage(
                  width = 6),
                mainPanel = mainPanel(
                  column(6,
+                        numericInput("mass_tolerance_ppm", "Mass accuracy of your system (ppm)", 3, step = 1),
                         fileInput("EIfile", "EI/fragment dataset (.csv)", accept = ".csv"),
                         numericInput("min_clustersize_EI", "Minimum number of m/z values a spectrum in the EI/fragment dataset must have to be included in the analysis", 20, min = 1, max = NA, step = 1),
                         fileInput("CIfile", "CI/molecular ion dataset (.csv) Adduct/fragment series search will be performed in here", accept = ".csv"),
@@ -31,8 +32,9 @@ ui <- fluidPage(
                  column(6,
                         textAreaInput("mass_diffs", "m/z differences to look for in the CI/molecular ion dataset", value = "-16.03130\n28.03130\n40.03130", height = "70px"),
                         numericInput("how_many_must_fit", "How many of those m/z differences need to be found for an ion to be included in the results?", 2, min = 1),
+                        selectInput("additional_filter", "Additional filtering for molecular ion candidates per spectrum based on highest", list("intensity", "m/z")),
+                        numericInput("topx_filter", "Only process the top X candidates per molecular ion spectrum based on above criterium", value = 3, min = 1, max = NA, step = 1),
                         textAreaInput("elements", "Element constraints for sum formula calculation (element/min/max)", value = "C 0 50\nH 0 50\nN 0 50\nO 0 50\nS 0 50\nSi 0 50\nP 0 50", height = "130px"),
-                        numericInput("mass_tolerance_ppm", "Mass accuracy of your system (ppm)", 3, step = 1),
                  ),
                  width = 6)
                , position = "right")
@@ -101,6 +103,8 @@ server <- local(function(input, output) {
     if (mass_tolerance == 0) {
       temp_env$mass_tolerance <- 1
     }
+    temp_env$additional_filter <- input$additional_filter
+    temp_env$topx_filter <- input$topx_filter
     temp_env$search_deltams <- input$mass_diffs
     temp_env$search_deltams <- as.double(stringr::str_extract_all(search_deltams, "[-]?[:digit:]+[:punct:]?[:digit:]+")[[1]])
     temp_env$how_many_must_fit <- round(input$how_many_must_fit)

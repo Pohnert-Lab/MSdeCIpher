@@ -10,11 +10,16 @@ finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,50),
   temp_env$n <- length(spectra_input)
   results_isotope_filtered <- lapply(spectra_input, filter_isotopes, mass_tolerance = mass_tolerance)
   })
-  print("isotope filtering done")
+  #print("isotope filtering done")
   
-  temp_env$n <- length(results_isotope_filtered)
+  withProgress(message = "Additional filtering", value = 0, {
+    temp_env$n <- length(results_isotope_filtered)
+    results_additional_filtered <- lapply(results_isotope_filtered, filter_topx, additional_filter, topx_filter)
+  })
+  
+  temp_env$n <- length(results_additional_filtered)
   withProgress(message = "Calculating sum formulas", value = 0, {
-  results_annotated <- lapply(results_isotope_filtered, build_sum_formula_tree_old_2, mass_tolerance = mass_tolerance, elements_limits = elements_limits)
+  results_annotated <- lapply(results_additional_filtered, build_sum_formula_tree_old_2, mass_tolerance = mass_tolerance, elements_limits = elements_limits)
   })
   dir.create("./annotated spectra results")
   k <- 1
@@ -22,6 +27,28 @@ finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,50),
     write.csv(results_annotated[[k]], paste("./annotated spectra results/", i, sep = ""), row.names = FALSE)
     k <- k+1
   }
+}
+
+
+filter_topx <- function(input_table, filter_criterium, topx) {
+  for(i in unique(input_table$pcgroup)) {
+    if (i == unique(input_table$pcgroup)[1]) {
+      output_table <- input_table[which(input_table$pcgroup == i),]
+    } else {
+      filter_table <- input_table[which(input_table$pcgroup == i),]
+      if (filter_criterium == "intensity") {
+        border_value <- sort(filter_table$into, decreasing = TRUE)[topx]
+        border_boolean <- filter_table$into >= border_value
+      }
+      if (filter_criterium == "m/z") {
+        border_value <- sort(filter_table$mz, decreasing = TRUE)[topx]
+        border_boolean <- filter_table$mz >= border_value
+      }
+      output_table <- rbind(output_table, filter_table[which(border_boolean),])
+    }
+  }
+  incProgress(1/n)
+  return(output_table)
 }
 
 #converts the sum formulas given as character strings in the rcdk S4 object @string into a vector with integers (depicting the number of times each element is present in the sum formula) corresponding to the element_definitions vector.

@@ -234,6 +234,22 @@ CI_annotate <- function(min.clustersize_CI, input_file, mass_tolerance, check_ra
   return(CI_list)
 }
 
+#skips the annotation step, just turns out a list similar to CI_annotate, but with all identity values as TRUE
+CI_no_annotate <- function(min.clustersize_CI, input_file) {
+  CI_list <- separate_CI_spectra(min.clustersize_CI, input_file)
+  for (i in 1:length(CI_list)) {
+    if (!is.null(CI_list[[i]])) {
+      ions_list <- CI_list[[i]]
+      mz_values <- unique(sort(ions_list$mz))
+      identity <- rep.int(TRUE, length(mz_values))
+      ions_list <- cbind(ions_list, identity)
+      CI_list[[i]] <- ions_list
+    }
+    incProgress(1/length(CI_list), detail = NULL)
+  }
+  return(CI_list)
+}
+
 
 #not in use
 sort_CItoEI_spectra  <- function(EI_input_file, CI_input_file, min.clustersize_EI = 20, min.clustersize_CI = 5, RetentionStandards = NULL, rt_tolerance = 0.5) {
@@ -284,7 +300,11 @@ annotate_EI_list  <- function(EI_input_file, CI_input_file, min.clustersize_EI =
   })
   EI_spectra <- separate_EI_spectra(min.clustersize_EI, EI_input_file)
   withProgress(message = "Finding ions of interest", value = 0, {
-  CI_spectra <- CI_annotate(min.clustersize_CI, CI_input_file, mass_tolerance, check_raw_data, mass_spec_CI)
+    if (length(search_deltams) == 0) {
+      CI_spectra <- CI_no_annotate(min.clustersize_CI, CI_input_file)
+    } else {
+      CI_spectra <- CI_annotate(min.clustersize_CI, CI_input_file, mass_tolerance, check_raw_data, mass_spec_CI)
+    }
   })
   dir.create("./annotated spectra/")
   for (i in 1:length(EI_index$`avg rt`)) {
