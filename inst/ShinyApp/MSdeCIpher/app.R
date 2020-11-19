@@ -24,16 +24,20 @@ ui <- fluidPage(
                mainPanel = mainPanel(
                  column(6,
                         numericInput("mass_tolerance_ppm", "Mass accuracy of your system (ppm)", 3, step = 1),
+                        tags$h6("--------------------------------"),
                         fileInput("EIfile", "EI/fragment dataset (.csv)", accept = ".csv"),
                         numericInput("min_clustersize_EI", "Minimum number of m/z values a spectrum in the EI/fragment dataset must have to be included in the analysis", 20, min = 1, max = NA, step = 1),
+                        tags$h6("--------------------------------"),
                         fileInput("CIfile", "CI/molecular ion dataset (.csv) Adduct/fragment series search will be performed in here", accept = ".csv"),
                         numericInput("min_clustersize_CI", "Minimum number of m/z values a spectrum in the CI/molecular ion dataset must have to be included in the analysis", 20, min = 1, max = NA, step = 1),
                  ),
                  column(6,
                         textAreaInput("mass_diffs", "m/z differences to look for in the CI/molecular ion dataset", value = "-16.03130\n28.03130\n40.03130", height = "70px"),
                         numericInput("how_many_must_fit", "How many of those m/z differences need to be found for an ion to be included in the results?", 2, min = 1),
-                        selectInput("additional_filter", "Additional filtering for molecular ion candidates per spectrum based on highest", list("intensity", "m/z")),
-                        numericInput("topx_filter", "Only process the top X candidates per molecular ion spectrum based on above criterium", value = 3, min = 1, max = NA, step = 1),
+                        tags$h6("--------------------------------"),
+                        selectInput("additional_filter", "Additional filtering for molecular ion candidates per spectrum based on highest", list("m/z", "intensity")),
+                        numericInput("topx_filter", "Only process the top X candidates per molecular ion spectrum based on above criterium", value = 5, min = 1, max = NA, step = 1),
+                        tags$h6("--------------------------------"),
                         textAreaInput("elements", "Element constraints for sum formula calculation (element/min/max)", value = "C 0 50\nH 0 50\nN 0 50\nO 0 50\nS 0 50\nSi 0 50\nP 0 50", height = "130px"),
                  ),
                  width = 6)
@@ -48,7 +52,6 @@ ui <- fluidPage(
                    tags$h4("OR", align = "center")
                  ),
                  fileInput("use_external_results", "Upload results from previous session (.zip)", accept = ".zip"),
-                 fileInput("EIfile2", "Previous EI/fragment dataset (.csv)", accept = ".csv"),
                  tags$h6("-----------------------", align = "center"),
                  numericInput("mz_to_search", "m/z value to search for in EI/fragment dataset", value = 50, min = 0),
                  numericInput("mz_to_search_tolerance", "+/- tolerance", value = 0.5, min = 0.00000001),
@@ -140,8 +143,12 @@ server <- local(function(input, output) {
 	})
     annotate_EI_list(EI_input_file = EI_input_file, CI_input_file = CI_input_file, min.clustersize_EI = min.clustersize_EI, min.clustersize_CI = min.clustersize_CI, RetentionStandards = RetentionStandards, mass_tolerance = mass_tolerance, rt_tolerance = rt_tolerance, search_deltams = search_deltams, how_many_must_fit = how_many_must_fit, check_raw_data = check_raw_data, CI_raw_file = CI_raw_file)
     finalfunction(elements_limits = elements_limits, mass_tolerance = mass_tolerance, raw_file_check = raw_file_check, EI_raw_file = EI_raw_file, CI_raw_file = CI_raw_file)
+    download_files <- list.files("./annotated spectra results", pattern = ".csv", full.names = TRUE)
+    file.copy(input$EIfile$datapath, paste(getwd(), "/fragment_input.csv", sep = ""))
+    file.copy(input$CIfile$datapath, paste(getwd(), "/molecularion_input.csv", sep = ""))
+    download_files <- c(download_files, paste(getwd(), "/fragment_input.csv", sep = ""), paste(getwd(), "/molecularion_input.csv", sep = ""))
     output$download_now <- downloadHandler("results.zip", content = function(temppath) {
-      zip::zipr(zipfile = temppath, files = list.files("./annotated spectra results", pattern = ".csv", full.names = TRUE))
+      zip::zipr(zipfile = temppath, files = download_files)
     }, contentType = "application/zip")
     output$download_results <- renderUI(downloadButton("download_now", "Download results"))
   })
@@ -149,17 +156,19 @@ server <- local(function(input, output) {
     if(!is.null(input$EIfile$datapath)) {
       output$error_1 <- renderText("Session data found")
       temp_env$search_EI <- read.csv(EI_input_file)
+      temp_env$search_CI <- read.csv(CI_input_file)
     } else {
       output$error_1 <- renderText("No current session data found")
     }
   })
   x <- NULL
   observeEvent(input$search_data, {
-    if (!is.null(input$use_external_results) & !is.null(input$EIfile2) & is.null(x)) {
-      temp_env$search_EI <- read.csv(input$EIfile2$datapath)
+    if (!is.null(input$use_external_results) & is.null(x)) {
       zip::unzip(input$use_external_results$datapath)
       dir.create("./annotated spectra results/", showWarnings = FALSE)
       file.copy(list.files("./", pattern = ".csv"), "./annotated spectra results/")
+      temp_env$search_EI <- read.csv("./annotated spectra results/fragment_input.csv")
+      temp_env$search_CI <- read.csv("./annotated spectra results/molecularion_input.csv")
       x <- 1
     }
     mz_to_search <- input$mz_to_search
