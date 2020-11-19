@@ -36,12 +36,17 @@ filter_topx <- function(input_table, filter_criterium, topx) {
       output_table <- input_table[which(input_table$pcgroup == i),]
     } else {
       filter_table <- input_table[which(input_table$pcgroup == i),]
+      if (topx > nrow(filter_table)) {
+        topx_corrected <- nrow(filter_table)
+      } else {
+        topx_corrected <- topx
+      }
       if (filter_criterium == "intensity") {
-        border_value <- sort(filter_table$into, decreasing = TRUE)[topx]
+        border_value <- sort(filter_table$into, decreasing = TRUE)[topx_corrected]
         border_boolean <- filter_table$into >= border_value
       }
       if (filter_criterium == "m/z") {
-        border_value <- sort(filter_table$mz, decreasing = TRUE)[topx]
+        border_value <- sort(filter_table$mz, decreasing = TRUE)[topx_corrected]
         border_boolean <- filter_table$mz >= border_value
       }
       output_table <- rbind(output_table, filter_table[which(border_boolean),])
