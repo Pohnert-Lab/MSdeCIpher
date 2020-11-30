@@ -324,7 +324,27 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
   colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
   incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("finished spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
+  new_table <- intensity_scoring_correction(new_table)
   return(new_table)
+}
+
+#retroactively applies a correction to the score by evaluation the intensity of each molecular ion candidate
+#for each separate CI pcgroup, takes the highest intensity molecular ion, takes that as 100%
+#calculates how many % intensity all other molecular ion candidates have
+#applies a log transformation to those values (100% equals to 0, 10% equals to -1, 1% equals to -2...)
+#subtracts this value from the score column
+intensity_scoring_correction <- function(input_table) {
+  output_table <- input_table
+  for (i in unique(output_table$pcgroup)) {
+    if (i != unique(output_table$pcgroup)[1]) {
+      table <- output_table[which(output_table$pcgroup == i),]
+      correction_values <- log(table$into/max(table$into))
+      corrected_probabilities <- round(table$probability_column+correction_values, 2)
+      table$probability_column <- corrected_probabilities
+      output_table[which(output_table$pcgroup == i),] <- table
+    }
+  }
+  return(output_table)
 }
 
 
