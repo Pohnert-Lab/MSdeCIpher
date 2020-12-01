@@ -321,10 +321,10 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
     }
     new_table <- rbind(new_table, cbind(separated_spectra_groups[[x]], sum_formula_column, probability_column))
   }
-  colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
   incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("finished spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
   new_table <- intensity_scoring_correction(new_table)
+  colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
   return(new_table)
 }
 
