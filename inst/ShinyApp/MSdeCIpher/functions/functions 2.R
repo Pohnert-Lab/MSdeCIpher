@@ -335,6 +335,9 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
 #subtracts this value from the score column
 intensity_scoring_correction <- function(input_table) {
   output_table <- input_table
+  output_table$probability_column[which(is.na(output_table$probability_column))] <- 0
+  output_table$probability_column[which(output_table$probability_column == "no fragments" | output_table$probability_column == "too many possible sum formulas")] <- 0
+  output_table$probability_column <- as.double(output_table$probability_column)
   for (i in unique(output_table$pcgroup)) {
     if (i != unique(output_table$pcgroup)[1]) {
       table <- output_table[which(output_table$pcgroup == i),]
