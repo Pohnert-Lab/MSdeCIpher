@@ -281,7 +281,7 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
           while ((check_for_isotopes == TRUE) & (!all(formula_matches == 0))) {
             check_for_isotopes <- FALSE
             correct_sum_formulas <- which(formula_matches == max(formula_matches, na.rm = TRUE))
-            if (!is.na(isotope_check_list)) {
+            if (!is.na(isotope_check_list[1])) {
               for (h in 1:length(correct_sum_formulas)) {
                 isotope_validity <- NULL
                 for (k in isotope_check_list) {
@@ -512,7 +512,7 @@ check_for_isotope <- function(check_rt, check_mz, mass_spec, isotope, mass_toler
   else {
     print("Error undefined isotope")
   }
-  lower_boundary <- check_mz+isotope_plus_mass/1000000*(1000000-mass_tolerance)
-  upper_boundary <- check_mz+isotope_plus_mass/1000000*(1000000+mass_tolerance)
+  lower_boundary <- (check_mz+isotope_plus_mass)/1000000*(1000000-mass_tolerance)
+  upper_boundary <- (check_mz+isotope_plus_mass)/1000000*(1000000+mass_tolerance)
   return(any((lower_boundary <= spectrum_to_check)&(upper_boundary >= spectrum_to_check)))
 }
