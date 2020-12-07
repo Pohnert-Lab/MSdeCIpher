@@ -355,7 +355,7 @@ remove_duplicates_fragment_tree_intensities <- function(fragment_tree_list_inten
 	dat <- rbind(fragment_tree_list_intensities, fragment_tree_list_mz)
     dat <- dat[,!duplicated(dat[2,])]
 	relative_intensities <- fragment_tree_list_intensities/sum(dat[1,])
-	return(log(fragment_tree_list_mz)*relative_intensities)
+	return(fragment_tree_list_mz*log(relative_intensities*100+1))
 }
 
 
