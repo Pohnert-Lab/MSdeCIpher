@@ -99,7 +99,7 @@ convert_atom_counts_into_string_formula <- function (atom_vector, element_defini
 calc_sum_formulas <- function (mz, mass_tolerance, elements_limits) {
   mass_tolerance_window <- mz/1000000*mass_tolerance
   sum_formula <- as.list(NULL)
-  try(sum_formula <- rcdk::generate.formula(mz+0.00055, window = mass_tolerance_window, elements = elements_limits, validation=TRUE, charge=1), silent = TRUE)
+  try(sum_formula <- rcdk::generate.formula(mz+0.00055, window = mass_tolerance_window, elements = elements_limits, validation=FALSE, charge=1), silent = TRUE)
   return(sum_formula)
 }
 
