@@ -274,7 +274,7 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
           for (i in 1:length(result_counts)) {
             substracted_list <- lapply(fragment_tree_list, function(x, subt_amnt) subt_amnt - x, subt_amnt = result_counts[[i]])
             logical_list <- lapply(lapply(substracted_list, function(x) x >= 0), function(h) all(h)) == TRUE
-            formula_matches <- c(formula_matches, sum(mz_scores[which(logical_list)], na.rm = TRUE))
+            formula_matches <- c(formula_matches, sum(unique(mz_scores[which(logical_list)]), na.rm = TRUE))
           }
 		  if (raw_file_check == TRUE) {
           check_for_isotopes <- TRUE
