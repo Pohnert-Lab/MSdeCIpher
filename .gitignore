@@ -1,2 +1,9 @@
 .Rproj.user
 inst/doc
+inst/ShinyApp/MSdeCIpher/.Rhistory
+inst/ShinyApp/MSdeCIpher/functions/.Rhistory
+example data/CI_raw.mzXML
+example data/CI_spectra.csv
+example data/EI_raw.mzXML
+example data/EI_spectra.csv
+example data/retention times.csv

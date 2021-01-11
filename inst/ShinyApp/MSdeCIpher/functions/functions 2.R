@@ -10,11 +10,16 @@ finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,50),
   temp_env$n <- length(spectra_input)
   results_isotope_filtered <- lapply(spectra_input, filter_isotopes, mass_tolerance = mass_tolerance)
   })
-  print("isotope filtering done")
+  #print("isotope filtering done")
   
-  temp_env$n <- length(results_isotope_filtered)
+  withProgress(message = "Additional filtering", value = 0, {
+    temp_env$n <- length(results_isotope_filtered)
+    results_additional_filtered <- lapply(results_isotope_filtered, filter_topx, additional_filter, topx_filter)
+  })
+  
+  temp_env$n <- length(results_additional_filtered)
   withProgress(message = "Calculating sum formulas", value = 0, {
-  results_annotated <- lapply(results_isotope_filtered, build_sum_formula_tree_old_2, mass_tolerance = mass_tolerance, elements_limits = elements_limits)
+  results_annotated <- lapply(results_additional_filtered, build_sum_formula_tree_old_2, mass_tolerance = mass_tolerance, elements_limits = elements_limits)
   })
   dir.create("./annotated spectra results")
   k <- 1
@@ -22,6 +27,33 @@ finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,50),
     write.csv(results_annotated[[k]], paste("./annotated spectra results/", i, sep = ""), row.names = FALSE)
     k <- k+1
   }
+}
+
+
+filter_topx <- function(input_table, filter_criterium, topx) {
+  for(i in unique(input_table$pcgroup)) {
+    if (i == unique(input_table$pcgroup)[1]) {
+      output_table <- input_table[which(input_table$pcgroup == i),]
+    } else {
+      filter_table <- input_table[which(input_table$pcgroup == i),]
+      if (topx > nrow(filter_table)) {
+        topx_corrected <- nrow(filter_table)
+      } else {
+        topx_corrected <- topx
+      }
+      if (filter_criterium == "intensity") {
+        border_value <- sort(filter_table$into, decreasing = TRUE)[topx_corrected]
+        border_boolean <- filter_table$into >= border_value
+      }
+      if (filter_criterium == "m/z") {
+        border_value <- sort(filter_table$mz, decreasing = TRUE)[topx_corrected]
+        border_boolean <- filter_table$mz >= border_value
+      }
+      output_table <- rbind(output_table, filter_table[which(border_boolean),])
+    }
+  }
+  incProgress(1/n)
+  return(output_table)
 }
 
 #converts the sum formulas given as character strings in the rcdk S4 object @string into a vector with integers (depicting the number of times each element is present in the sum formula) corresponding to the element_definitions vector.
@@ -67,7 +99,7 @@ convert_atom_counts_into_string_formula <- function (atom_vector, element_defini
 calc_sum_formulas <- function (mz, mass_tolerance, elements_limits) {
   mass_tolerance_window <- mz/1000000*mass_tolerance
   sum_formula <- as.list(NULL)
-  try(sum_formula <- rcdk::generate.formula(mz+0.00055, window = mass_tolerance_window, elements = elements_limits, validation=TRUE, charge=1), silent = TRUE)
+  try(sum_formula <- rcdk::generate.formula(mz+0.00055, window = mass_tolerance_window, elements = elements_limits, validation=FALSE, charge=1), silent = TRUE)
   return(sum_formula)
 }
 
@@ -242,14 +274,14 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
           for (i in 1:length(result_counts)) {
             substracted_list <- lapply(fragment_tree_list, function(x, subt_amnt) subt_amnt - x, subt_amnt = result_counts[[i]])
             logical_list <- lapply(lapply(substracted_list, function(x) x >= 0), function(h) all(h)) == TRUE
-            formula_matches <- c(formula_matches, sum(mz_scores[which(logical_list)], na.rm = TRUE))
+            formula_matches <- c(formula_matches, sum(unique(mz_scores[which(logical_list)]), na.rm = TRUE))
           }
 		  if (raw_file_check == TRUE) {
           check_for_isotopes <- TRUE
           while ((check_for_isotopes == TRUE) & (!all(formula_matches == 0))) {
             check_for_isotopes <- FALSE
             correct_sum_formulas <- which(formula_matches == max(formula_matches, na.rm = TRUE))
-            if (!is.na(isotope_check_list)) {
+            if (!is.na(isotope_check_list[1])) {
               for (h in 1:length(correct_sum_formulas)) {
                 isotope_validity <- NULL
                 for (k in isotope_check_list) {
@@ -289,10 +321,33 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
     }
     new_table <- rbind(new_table, cbind(separated_spectra_groups[[x]], sum_formula_column, probability_column))
   }
-  colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
   incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("finished spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
+  new_table <- intensity_scoring_correction(new_table)
+  colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
   return(new_table)
+}
+
+#retroactively applies a correction to the score by evaluation the intensity of each molecular ion candidate
+#for each separate CI pcgroup, takes the highest intensity molecular ion, takes that as 100%
+#calculates how many % intensity all other molecular ion candidates have
+#applies a log transformation to those values (100% equals to 0, 10% equals to -1, 1% equals to -2...)
+#subtracts this value from the score column
+intensity_scoring_correction <- function(input_table) {
+  output_table <- input_table
+  output_table$probability_column[which(is.na(output_table$probability_column))] <- 0
+  output_table$probability_column[which(output_table$probability_column == "no fragments" | output_table$probability_column == "too many possible sum formulas")] <- 0
+  output_table$probability_column <- as.double(output_table$probability_column)
+  for (i in unique(output_table$pcgroup)) {
+    if (i != unique(output_table$pcgroup)[1]) {
+      table <- output_table[which(output_table$pcgroup == i),]
+      correction_values <- log(table$into/max(table$into))
+      corrected_probabilities <- round(table$probability_column+correction_values, 2)
+      table$probability_column <- corrected_probabilities
+      output_table[which(output_table$pcgroup == i),] <- table
+    }
+  }
+  return(output_table)
 }
 
 
@@ -457,7 +512,7 @@ check_for_isotope <- function(check_rt, check_mz, mass_spec, isotope, mass_toler
   else {
     print("Error undefined isotope")
   }
-  lower_boundary <- check_mz+isotope_plus_mass/1000000*(1000000-mass_tolerance)
-  upper_boundary <- check_mz+isotope_plus_mass/1000000*(1000000+mass_tolerance)
+  lower_boundary <- (check_mz+isotope_plus_mass)/1000000*(1000000-mass_tolerance)
+  upper_boundary <- (check_mz+isotope_plus_mass)/1000000*(1000000+mass_tolerance)
   return(any((lower_boundary <= spectrum_to_check)&(upper_boundary >= spectrum_to_check)))
 }
