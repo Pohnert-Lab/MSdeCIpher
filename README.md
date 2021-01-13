@@ -1,6 +1,6 @@
 # MSdeCIpher
 Molecular ion finder
-
+Check out the Tutorial.pdf to learn how to use MSdeCIpher!
 
 Installation starting from a clean install of R version >= 3.6.1:
 --
