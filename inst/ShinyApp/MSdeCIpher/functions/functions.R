@@ -6,6 +6,7 @@ calculateRT <-
 function(inputRT, EIRTs, CIRTs) {
   if(inputRT %in% EIRTs) {
     outputRT <- CIRTs[match(inputRT, EIRTs)]
+    return(outputRT)
   } else if(inputRT > max(EIRTs) | inputRT < min(EIRTs)) {
     print("Error: Retention time out of standards range")
   }
