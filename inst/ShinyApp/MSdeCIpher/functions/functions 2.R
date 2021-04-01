@@ -1,4 +1,4 @@
-finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,50),
+finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,100),
                                                c("N",0,50),c("O",0,50),
                                                c("S",0,50), c("Si",0,50), c("P",0,50)), mass_tolerance, raw_file_check = FALSE, EI_raw_file, CI_raw_file) {
   file_names <- list.files(path = "./annotated spectra/")
@@ -96,10 +96,10 @@ convert_atom_counts_into_string_formula <- function (atom_vector, element_defini
 #calculates possible sum formulas of an mz value given tolerance in ppm and with defined element contraints
 #rcdk function generate.formula is wrapped in try expression because it produces an error when no sum formulas match within constraints
 #this function returns a list of S4 class objects with the sum formula embedded as a character string in @string
-calc_sum_formulas <- function (mz, mass_tolerance, elements_limits) {
+calc_sum_formulas <- function (mz, mass_tolerance, elements_limits, filter = FALSE) {
   mass_tolerance_window <- mz/1000000*mass_tolerance
   sum_formula <- as.list(NULL)
-  try(sum_formula <- rcdk::generate.formula(mz+0.00055, window = mass_tolerance_window, elements = elements_limits, validation=FALSE, charge=1), silent = TRUE)
+  try(sum_formula <- rcdk::generate.formula(mz+0.00055, window = mass_tolerance_window, elements = elements_limits, validation=filter, charge=1), silent = TRUE)
   return(sum_formula)
 }
 
@@ -221,7 +221,7 @@ build_sum_formula_tree_old <- function(result_table, mass_tolerance, elements_li
 
 #old version with intensity scoring and sum formula display
 build_sum_formula_tree_old_2 <- function(result_table, mass_tolerance, elements_limits) {
-incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
+  incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("begin computing spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
   if (any(c("S", "Cl", "Br") %in% element_definitions)) {
     isotope_check_list <- c("S", "Cl", "Br")[which(c("S", "Cl", "Br") %in% element_definitions)]
@@ -244,79 +244,107 @@ incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
     probability_column <- NULL
     for (z in 1:length(separated_spectra_groups[[x]]$mz)) {
       if(length(fragment_tree_list)==0 & !(x==1)) {
-		sum_formula_column[z] <- "no fragments"
+        sum_formula_column[z] <- "no fragments"
         probability_column[z] <- "no fragments"
-	  } else {
-      mz <- separated_spectra_groups[[x]]$mz[z]
-      result <- calc_sum_formulas(mz, mass_tolerance, elements_limits)
-      correct_sum_characters <- NULL
-      if (length(result) == 0) {
-        sum_formula_column[z] <- NA
-        probability_column[z] <- NA
-      } else if (length(result)>10 & length(fragment_tree_list)==0) {
-		sum_formula_column[z] <- "too many possible sum formulas"
-        probability_column[z] <- "too many possible sum formulas"
-	  } else {
-        result_counts <- convert_strings_into_atom_counts(result, element_definitions)
-        if (length(fragment_tree_list)==0) {
-          fragment_tree_list <- c(fragment_tree_list, result_counts)
-          for (i in 1:length(result)) {
-            correct_sum_characters <- c(correct_sum_characters, result[[i]]@string)
-            sum_formula_column[z] <- stringr::str_c(correct_sum_characters, sep = " ", collapse = " ")
-            fragment_tree_list_intensities <- c(fragment_tree_list_intensities, separated_spectra_groups[[x]]$into[z])
-            fragment_tree_list_mz <- c(fragment_tree_list_mz, separated_spectra_groups[[x]]$mz[z])
-          }
+      } else {
+        mz <- separated_spectra_groups[[x]]$mz[z]
+        if (x == 1) {
+          result <- calc_sum_formulas(mz, mass_tolerance, elements_limits, filter = FALSE)
+        }
+        else {
+          result <- calc_sum_formulas(mz, mass_tolerance, elements_limits, filter = TRUE)
+        }
+        correct_sum_characters <- NULL
+        if (length(result) == 0) {
+          sum_formula_column[z] <- NA
           probability_column[z] <- NA
-		} else {
-          formula_matches <- NULL
-		      mz_scores <- 0
-          try(mz_scores <- remove_duplicates_fragment_tree_intensities(fragment_tree_list_intensities, fragment_tree_list_mz), silent = TRUE)
-          for (i in 1:length(result_counts)) {
-            substracted_list <- lapply(fragment_tree_list, function(x, subt_amnt) subt_amnt - x, subt_amnt = result_counts[[i]])
-            logical_list <- lapply(lapply(substracted_list, function(x) x >= 0), function(h) all(h)) == TRUE
-            formula_matches <- c(formula_matches, sum(unique(mz_scores[which(logical_list)]), na.rm = TRUE))
-          }
-		  if (raw_file_check == TRUE) {
-          check_for_isotopes <- TRUE
-          while ((check_for_isotopes == TRUE) & (!all(formula_matches == 0))) {
-            check_for_isotopes <- FALSE
-            correct_sum_formulas <- which(formula_matches == max(formula_matches, na.rm = TRUE))
-            if (!is.na(isotope_check_list[1])) {
-              for (h in 1:length(correct_sum_formulas)) {
-                isotope_validity <- NULL
-                for (k in isotope_check_list) {
-                  isotope_number <- result_counts[[correct_sum_formulas[h]]][which(k == element_definitions)]
-                  if (isotope_number > 0) {
-                    rt <- separated_spectra_groups[[x]]$rt[z]
-					if(x == 1){
-					isotope_validity <- c(isotope_validity, check_for_isotope(rt, mz, mass_spec_EI, k, mass_tolerance))
-					} else {
-					isotope_validity <- c(isotope_validity, check_for_isotope(rt, mz, mass_spec_CI, k, mass_tolerance))
-					}
+        } else if (length(result)>10 & length(fragment_tree_list)==0) {
+          sum_formula_column[z] <- "too many possible sum formulas"
+          probability_column[z] <- "too many possible sum formulas"
+        } else {
+          result_counts <- convert_strings_into_atom_counts(result, element_definitions)
+          # #browser()
+          # result_delete_vector <- heuristic_filtering() #heuristic filtering of sum formula candidates before they are evaluated with the fragments
+          # if(!is.null(result_delete_vector)) {
+          #   for(b in result_delete_vector) {
+          #     result[[b]] <- NULL
+          #     result_counts[[b]] <- NULL
+          #   }
+          # }
+          # if (x > 1) {
+          #   #browser()
+          #   result_delete_vector <- heuristic_filtering_LEWIS_SENIOR() #heuristic filtering of sum formula candidates before they are evaluated with the fragments
+          #   if(!is.null(result_delete_vector)) {
+          #     for(b in result_delete_vector) {
+          #       result[[b]] <- NULL
+          #       result_counts[[b]] <- NULL
+          #     }
+          #   }
+          # }
+          if (length(result) == 0) {
+            sum_formula_column[z] <- NA
+            probability_column[z] <- NA
+          } else {
+            if (length(fragment_tree_list)==0) {
+              fragment_tree_list <- c(fragment_tree_list, result_counts)
+              for (i in 1:length(result)) {
+                correct_sum_characters <- c(correct_sum_characters, result[[i]]@string)
+                sum_formula_column[z] <- stringr::str_c(correct_sum_characters, sep = " ", collapse = " ")
+                fragment_tree_list_intensities <- c(fragment_tree_list_intensities, separated_spectra_groups[[x]]$into[z])
+                fragment_tree_list_mz <- c(fragment_tree_list_mz, separated_spectra_groups[[x]]$mz[z])
+              }
+              probability_column[z] <- NA
+            } else {
+              formula_matches <- NULL
+              mz_scores <- 0
+              try(mz_scores <- remove_duplicates_fragment_tree_intensities(fragment_tree_list_intensities, fragment_tree_list_mz), silent = TRUE)
+              for (i in 1:length(result_counts)) {
+                substracted_list <- lapply(fragment_tree_list, function(x, subt_amnt) subt_amnt - x, subt_amnt = result_counts[[i]])
+                logical_list <- lapply(lapply(substracted_list, function(x) x >= 0), function(h) all(h)) == TRUE
+                formula_matches <- c(formula_matches, sum(unique(mz_scores[which(logical_list)]), na.rm = TRUE))
+              }
+              if (raw_file_check == TRUE) {
+                check_for_isotopes <- TRUE
+                while ((check_for_isotopes == TRUE) & (!all(formula_matches == 0))) {
+                  check_for_isotopes <- FALSE
+                  correct_sum_formulas <- which(formula_matches == max(formula_matches, na.rm = TRUE))
+                  if (!is.na(isotope_check_list[1])) {
+                    for (h in 1:length(correct_sum_formulas)) {
+                      isotope_validity <- NULL
+                      for (k in isotope_check_list) {
+                        isotope_number <- result_counts[[correct_sum_formulas[h]]][which(k == element_definitions)]
+                        if (isotope_number > 0) {
+                          rt <- separated_spectra_groups[[x]]$rt[z]
+                          if(x == 1){
+                            isotope_validity <- c(isotope_validity, check_for_isotope(rt, mz, mass_spec_EI, k, mass_tolerance))
+                          } else {
+                            isotope_validity <- c(isotope_validity, check_for_isotope(rt, mz, mass_spec_CI, k, mass_tolerance))
+                          }
+                        }
+                      }
+                      if (FALSE %in% isotope_validity) {
+                        formula_matches[correct_sum_formulas[h]] <- 0
+                        check_for_isotopes <- TRUE
+                      }
+                    }
                   }
                 }
-                if (FALSE %in% isotope_validity) {
-                  formula_matches[correct_sum_formulas[h]] <- 0
-                  check_for_isotopes <- TRUE
-                }
               }
+              correct_sum_formulas <- which(formula_matches == max(formula_matches, na.rm = TRUE))
+              confidence_values <- formula_matches[correct_sum_formulas]/sum(unique(mz_scores))*100
+              probability_column[z] <- round(confidence_values[1], 2)
+              for (i in correct_sum_formulas) {
+                if (x == 1) {
+                  fragment_tree_list <- c(fragment_tree_list, result_counts[i])
+                  fragment_tree_list_intensities <- c(fragment_tree_list_intensities, separated_spectra_groups[[x]]$into[z])
+                  fragment_tree_list_mz <- c(fragment_tree_list_mz, separated_spectra_groups[[x]]$mz[z])
+                }
+                correct_sum_characters <- c(correct_sum_characters, result[[i]]@string)
+              }
+              sum_formula_column[z] <- stringr::str_c(correct_sum_characters, sep = " ", collapse = " ")
             }
           }
-		  }
-		  correct_sum_formulas <- which(formula_matches == max(formula_matches, na.rm = TRUE))
-          confidence_values <- formula_matches[correct_sum_formulas]/sum(unique(mz_scores))*100
-          probability_column[z] <- round(confidence_values[1], 2)
-          for (i in correct_sum_formulas) {
-            if (x == 1) {
-              fragment_tree_list <- c(fragment_tree_list, result_counts[i])
-              fragment_tree_list_intensities <- c(fragment_tree_list_intensities, separated_spectra_groups[[x]]$into[z])
-              fragment_tree_list_mz <- c(fragment_tree_list_mz, separated_spectra_groups[[x]]$mz[z])
-            }
-            correct_sum_characters <- c(correct_sum_characters, result[[i]]@string)
-          }
-          sum_formula_column[z] <- stringr::str_c(correct_sum_characters, sep = " ", collapse = " ")
         }
-	  }
       }
     }
     new_table <- rbind(new_table, cbind(separated_spectra_groups[[x]], sum_formula_column, probability_column))
