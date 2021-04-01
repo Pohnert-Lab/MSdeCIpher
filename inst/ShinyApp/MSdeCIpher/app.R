@@ -38,7 +38,7 @@ ui <- fluidPage(
                         selectInput("additional_filter", "Additional filtering for molecular ion candidates per spectrum based on highest", list("m/z", "intensity")),
                         numericInput("topx_filter", "Only process the top X candidates per molecular ion spectrum based on above criterium", value = 5, min = 1, max = NA, step = 1),
                         tags$h6("--------------------------------"),
-                        textAreaInput("elements", "Element constraints for sum formula calculation (element/min/max)", value = "C 0 50\nH 0 50\nN 0 50\nO 0 50\nS 0 50\nSi 0 50\nP 0 50", height = "130px"),
+                        textAreaInput("elements", "Element constraints for sum formula calculation (element/min/max)", value = "C 0 50\nH 0 100\nN 0 20\nO 0 20\nS 0 10\nSi 0 10\nP 0 10", height = "130px"),
                  ),
                  width = 6)
                , position = "right")
