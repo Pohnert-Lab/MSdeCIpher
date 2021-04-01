@@ -6,7 +6,6 @@ calculateRT <-
 function(inputRT, EIRTs, CIRTs) {
   if(inputRT %in% EIRTs) {
     outputRT <- CIRTs[match(inputRT, EIRTs)]
-    return(outputRT)
   } else if(inputRT > max(EIRTs) | inputRT < min(EIRTs)) {
     print("Error: Retention time out of standards range")
   }
@@ -213,13 +212,38 @@ CI_annotate <- function(min.clustersize_CI, input_file, mass_tolerance, check_ra
         max_vector <- which(retention_time_vector <= max(ions_list$rt))
         max_vector <- c(max_vector, max_vector[length(max_vector)]+1)
         scans_to_check <- which(max_vector %in% min_vector)
-        spectrum_to_check <- NULL
-        for (k in scans_to_check) {
-          spectrum_to_check <- c(spectrum_to_check, mass_spec_CI[[k]]$spectrum$mass)
-        }
+        # spectrum_to_check <- NULL
+        # for (k in scans_to_check) {
+        #   spectrum_to_check <- c(spectrum_to_check, mass_spec_CI[[k]]$spectrum$mass)
+        # }
         for (j in 1:length(mz_values)) {
-          diff_list <- mass_diff(mz_values[j], unique(spectrum_to_check), mass_tolerance)
-          identity[j] <- isAdduct(diff_list, search_deltams, how_many_must_fit)
+          upper_value <- mz_values[j]+(mz_values[j]/1000000)*mass_tolerance
+          lower_value <- mz_values[j]-(mz_values[j]/1000000)*mass_tolerance
+          scan_decider <- NULL
+          for (t in scans_to_check) {
+            correct_ion_number <- which((mass_spec_CI[[t]]$spectrum$mass <= upper_value) & (mass_spec_CI[[t]]$spectrum$mass >= lower_value))
+            if (length(correct_ion_number) > 0){
+              scan_decider <- c(scan_decider, max(mass_spec_CI[[t]]$spectrum$intensity[correct_ion_number]))
+            } else {
+              scan_decider <- c(scan_decider, 0)
+            }
+          }
+          if(all(scan_decider == 0)) {
+            identity[j] <- FALSE
+          } else {
+            scan_final <- scans_to_check[which(max(scan_decider) == scan_decider)]
+            spectrum_to_check <- mass_spec_CI[[scan_final]]$spectrum$mass
+            correct_ion_number <- which((mass_spec_CI[[scan_final]]$spectrum$mass <= upper_value) & (mass_spec_CI[[scan_final]]$spectrum$mass >= lower_value))
+            ion_intensity <- mass_spec_CI[[scan_final]]$spectrum$intensity[correct_ion_number]
+            total_intensity <- sum(mass_spec_CI[[scan_final]]$spectrum$intensity)
+            if (length(ion_intensity/total_intensity >= 0.01) == 0) {browser()}
+            if (ion_intensity/total_intensity >= 0.01) {
+              diff_list <- mass_diff(mz_values[j], unique(spectrum_to_check), mass_tolerance)
+              identity[j] <- isAdduct(diff_list, search_deltams, how_many_must_fit)
+            } else{
+              identity[j] <- FALSE
+            }
+          }
         }
       } else {
         for (j in 1:length(mz_values)) {
