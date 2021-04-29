@@ -118,12 +118,24 @@ return(EI_index)
 
 #function that outputs the mass difference between m/z values with tolerances (output is table with min mass in first column and max mass in second column), considering an input ppm
 mass_diff <- function (low_mass_input, high_mass_input, ppm) {
-  mass_difference <- high_mass_input-low_mass_input
-  tolerance <- high_mass_input/1000000*ppm
-  min_mass_output <- mass_difference-tolerance
-  max_mass_output <- mass_difference+tolerance
+  high_mass_upper_limit <- high_mass_input + high_mass_input/1000000*ppm
+  high_mass_lower_limit <- high_mass_input - high_mass_input/1000000*ppm
+  low_mass_upper_limit <- low_mass_input + low_mass_input/1000000*ppm
+  low_mass_lower_limit <- low_mass_input - low_mass_input/1000000*ppm
+  min_mass_output <- high_mass_lower_limit - low_mass_upper_limit
+  max_mass_output <- high_mass_upper_limit - low_mass_lower_limit
   return(data.frame(min_mass_output, max_mass_output))
 }
+#old version
+# mass_diff <- function (low_mass_input, high_mass_input, ppm) {
+#   mass_difference <- high_mass_input-low_mass_input
+#   tolerance <- high_mass_input/1000000*ppm
+#   min_mass_output <- mass_difference-tolerance
+#   max_mass_output <- mass_difference+tolerance
+#   return(data.frame(min_mass_output, max_mass_output))
+# }
+
+
 
 #tests if a certain masses with tolerances (table with 2 columns, first the low ends, second the high ends) fit to certain adduct masses, returns the identity of the possible adducts as character vector or NA
 isAdduct_old <- function(tolerance_values) {
@@ -233,10 +245,12 @@ CI_annotate <- function(min.clustersize_CI, input_file, mass_tolerance, check_ra
           } else {
             scan_final <- scans_to_check[which(max(scan_decider) == scan_decider)]
             spectrum_to_check <- mass_spec_CI[[scan_final]]$spectrum$mass
+            try(spectrum_to_check <- c(mass_spec_CI[[scan_final]]$spectrum$mass, mass_spec_CI[[scan_final+1]]$spectrum$mass, mass_spec_CI[[scan_final-1]]$spectrum$mass), silent = TRUE)
             correct_ion_number <- which((mass_spec_CI[[scan_final]]$spectrum$mass <= upper_value) & (mass_spec_CI[[scan_final]]$spectrum$mass >= lower_value))
-            ion_intensity <- mass_spec_CI[[scan_final]]$spectrum$intensity[correct_ion_number]
-            total_intensity <- sum(mass_spec_CI[[scan_final]]$spectrum$intensity)
-            if (length(ion_intensity/total_intensity >= 0.01) == 0) {browser()}
+            correct_ion_number <- which(max(mass_spec_CI[[scan_final]]$spectrum$intensity[correct_ion_number]) == mass_spec_CI[[scan_final]]$spectrum$intensity)
+            ion_mass <- mass_spec_CI[[scan_final]]$spectrum$mass[correct_ion_number]
+            ion_intensity <- max(mass_spec_CI[[scan_final]]$spectrum$intensity[correct_ion_number])
+            total_intensity <- max(mass_spec_CI[[scan_final]]$spectrum$intensity)
             if (ion_intensity/total_intensity >= 0.01) {
               diff_list <- mass_diff(mz_values[j], unique(spectrum_to_check), mass_tolerance)
               identity[j] <- isAdduct(diff_list, search_deltams, how_many_must_fit)
