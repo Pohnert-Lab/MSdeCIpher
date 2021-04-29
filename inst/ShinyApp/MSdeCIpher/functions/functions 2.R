@@ -1,26 +1,26 @@
 finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,100),
-                                               c("N",0,50),c("O",0,50),
-                                               c("S",0,50), c("Si",0,50), c("P",0,50)), mass_tolerance, raw_file_check = FALSE, EI_raw_file, CI_raw_file) {
+                                               c("N",0,20),c("O",0,20),
+                                               c("S",0,10), c("Si",0,10), c("P",0,10)), mass_tolerance, raw_file_check = FALSE, EI_raw_file, CI_raw_file) {
   file_names <- list.files(path = "./annotated spectra/")
   spectra_input <- as.list(NULL)
   for (h in 1:length(file_names)) {
     spectra_input[[h]] <- read.csv(paste("./annotated spectra/", file_names[h], sep =""))
   }
-  withProgress(message = "Filtering isotopes", value = 0, {
+  #withProgress(message = "Filtering isotopes", value = 0, {
   temp_env$n <- length(spectra_input)
   results_isotope_filtered <- lapply(spectra_input, filter_isotopes, mass_tolerance = mass_tolerance)
-  })
+  #})
   #print("isotope filtering done")
   
-  withProgress(message = "Additional filtering", value = 0, {
+  #withProgress(message = "Additional filtering", value = 0, {
     temp_env$n <- length(results_isotope_filtered)
     results_additional_filtered <- lapply(results_isotope_filtered, filter_topx, additional_filter, topx_filter)
-  })
+  #})
   
   temp_env$n <- length(results_additional_filtered)
-  withProgress(message = "Calculating sum formulas", value = 0, {
+  #withProgress(message = "Calculating sum formulas", value = 0, {
   results_annotated <- lapply(results_additional_filtered, build_sum_formula_tree_old_2, mass_tolerance = mass_tolerance, elements_limits = elements_limits)
-  })
+  #})
   dir.create("./annotated spectra results")
   k <- 1
   for(i in file_names) {
@@ -52,7 +52,7 @@ filter_topx <- function(input_table, filter_criterium, topx) {
       output_table <- rbind(output_table, filter_table[which(border_boolean),])
     }
   }
-  incProgress(1/n)
+  #incProgress(1/n)
   return(output_table)
 }
 
@@ -63,7 +63,7 @@ convert_strings_into_atom_counts <- function (formula, element_definitions) {
   for (j in 1:length(formula)) {
     formula_separated <- stringr::str_extract_all(formula[[j]]@string, "([:upper:])([:lower:]?+)([:digit:]*)", simplify = TRUE)
     counts_separated <- stringr::str_extract_all(formula_separated, "[:digit:]*", simplify = TRUE)[,2]
-    #try(counts_separated <- stringr::str_extract_all(formula_separated, "[:digit:]+", simplify = TRUE)[,1], silent = TRUE)
+    try(counts_separated <- stringr::str_extract_all(formula_separated, "[:digit:]+", simplify = TRUE)[,1], silent = TRUE)
     elements_separated <- stringr::str_extract_all(formula_separated, "[:alpha:]+", simplify = TRUE)[,1]
     count_matrix <- rbind(elements_separated, counts_separated)
     atom_counts <- NULL
@@ -153,75 +153,17 @@ filter_isotopes <- function(table_with_isotopes, mass_tolerance) {
     }
     output <- rbind(output, reduced_result_table)
   }
-  incProgress(1/n)
+  #incProgress(1/n)
   return(output)
 }
 
 
 
-#old version
-build_sum_formula_tree_old <- function(result_table, mass_tolerance, elements_limits) {
-  spectra_groups <- unique(result_table$pcgroup)
-  separated_spectra_groups <- as.list(NULL)
-  fragment_tree_list <- as.list(NULL)
-  j <- 1
-  for (w in spectra_groups) {
-    separated_spectra_groups[[j]] <- result_table[result_table$pcgroup == w,]
-    j <- j+1
-  }
-  new_table <- NULL
-  for (x in 1:length(separated_spectra_groups)) {
-    if (x != 1) {
-      fragment_tree_list <- fragment_tree_list_EI_base
-    }
-    sum_formula_column <- NULL
-    probability_column <- NULL
-    for (z in 1:length(separated_spectra_groups[[x]]$mz)) {
-      mz <- separated_spectra_groups[[x]]$mz[z]
-      result <- calc_sum_formulas(mz, mass_tolerance, elements_limits)
-      correct_sum_characters <- NULL
-      if (length(result) == 0) {
-        sum_formula_column[z] <- NA
-        probability_column[z] <- NA
-      } else {
-        result_counts <- convert_strings_into_atom_counts(result, element_definitions)
-        if (length(fragment_tree_list) == 0) {
-          fragment_tree_list <- c(fragment_tree_list, result_counts)
-          for (i in 1:length(result)) {
-            correct_sum_characters <- c(correct_sum_characters, result[[i]]@string)
-          }
-          probability_column[z] <- NA
-        } else {
-          formula_matches <- NULL
-          for (i in 1:length(result_counts)) {
-            substracted_list <- lapply(fragment_tree_list, function(x, subt_amnt) subt_amnt - x, subt_amnt = result_counts[[i]])
-            logical_list <- lapply(lapply(substracted_list, function(x) x >= 0), function(h) all(h)) == TRUE
-            formula_matches <- c(formula_matches, sum(logical_list, na.rm = TRUE))
-          }
-          correct_sum_formulas <- which(formula_matches == max(formula_matches))
-          confidence_values <- formula_matches[correct_sum_formulas]/length(fragment_tree_list)*100
-          probability_column[z] <- paste(round(confidence_values[1], 2), "%", sep = "", collapse = " ")
-          for (i in correct_sum_formulas) {
-			if (x == 1) {
-				fragment_tree_list <- c(fragment_tree_list, result_counts[i])
-			}
-            correct_sum_characters <- c(correct_sum_characters, result[[i]]@string)
-          }
-        }
-        sum_formula_column[z] <- stringr::str_c(correct_sum_characters, sep = " ", collapse = " ")
-      }
-    }
-    if (x == 1) {
-      fragment_tree_list_EI_base <- fragment_tree_list
-    }
-    new_table <- rbind(new_table, cbind(separated_spectra_groups[[x]], sum_formula_column, probability_column))
-  }
-  return(new_table)
-}
 
-#old version with intensity scoring and sum formula display
+
+#actual version
 build_sum_formula_tree_old_2 <- function(result_table, mass_tolerance, elements_limits) {
-  incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
+  #incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("begin computing spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
   if (any(c("S", "Cl", "Br") %in% element_definitions)) {
     isotope_check_list <- c("S", "Cl", "Br")[which(c("S", "Cl", "Br") %in% element_definitions)]
@@ -263,24 +205,40 @@ build_sum_formula_tree_old_2 <- function(result_table, mass_tolerance, elements_
           probability_column[z] <- "too many possible sum formulas"
         } else {
           result_counts <- convert_strings_into_atom_counts(result, element_definitions)
-          # #browser()
-          # result_delete_vector <- heuristic_filtering() #heuristic filtering of sum formula candidates before they are evaluated with the fragments
-          # if(!is.null(result_delete_vector)) {
-          #   for(b in result_delete_vector) {
-          #     result[[b]] <- NULL
-          #     result_counts[[b]] <- NULL
-          #   }
-          # }
+          result_delete_vector_1 <- NULL
+          result_delete_vector_2 <- NULL
+          if(x > 1) {
+            result_delete_vector_1 <- heuristic_filtering_for_fragments(result_counts=result_counts, element_definitions=element_definitions) #heuristic filtering of sum formula candidates before they are evaluated with the fragments
+          }
           # if (x > 1) {
-          #   #browser()
-          #   result_delete_vector <- heuristic_filtering_LEWIS_SENIOR() #heuristic filtering of sum formula candidates before they are evaluated with the fragments
-          #   if(!is.null(result_delete_vector)) {
-          #     for(b in result_delete_vector) {
-          #       result[[b]] <- NULL
-          #       result_counts[[b]] <- NULL
-          #     }
-          #   }
+          #   result_delete_vector_2 <- heuristic_filtering_for_molecular_ions(fragment_tree_list=fragment_tree_list, fragment_tree_list_intensities=fragment_tree_list_intensities, result_counts=result_counts, element_definitions=element_definitions) #heuristic filtering of sum formula candidates before they are evaluated with the fragments
           # }
+          # result_delete_vector <- unique(c(result_delete_vector_1, result_delete_vector_2))
+          result_delete_vector <- result_delete_vector_1
+          keep_vector <- 1:length(result_counts)
+          keep_elements <- NULL
+          for (n in keep_vector) {
+            if (!(n %in% result_delete_vector)) {
+              keep_elements <- c(keep_elements, n)
+            }
+          }
+          keep_vector <- keep_elements
+          if(is.null(keep_vector)) {
+            result <- NULL
+            result_counts <- NULL
+          } else {
+            l <- 1
+            new_list_1 <- list()
+            new_list_2 <- list()
+            for (g in keep_vector){
+              new_list_1[[l]] <- result_counts[[g]]
+              new_list_2[[l]] <- result[[g]]
+              l <- l+1
+            }
+            result_counts <- new_list_1
+            result <- new_list_2
+          }
+          
           if (length(result) == 0) {
             sum_formula_column[z] <- NA
             probability_column[z] <- NA
@@ -349,7 +307,7 @@ build_sum_formula_tree_old_2 <- function(result_table, mass_tolerance, elements_
     }
     new_table <- rbind(new_table, cbind(separated_spectra_groups[[x]], sum_formula_column, probability_column))
   }
-  incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
+  #incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("finished spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
   new_table <- intensity_scoring_correction(new_table)
   colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
@@ -544,3 +502,110 @@ check_for_isotope <- function(check_rt, check_mz, mass_spec, isotope, mass_toler
   upper_boundary <- (check_mz+isotope_plus_mass)/1000000*(1000000+mass_tolerance)
   return(any((lower_boundary <= spectrum_to_check)&(upper_boundary >= spectrum_to_check)))
 }
+
+#heuristic filtering of sum formula candidates before they are evaluated with the fragments
+heuristic_filtering_for_molecular_ions <- function(fragment_tree_list=fragment_tree_list, fragment_tree_list_intensities=fragment_tree_list_intensities, result_counts=result_counts, element_definitions=element_definitions) { #heuristic filtering of sum formula candidates before they are evaluated with the fragments
+  delete_result_vector <- NULL
+  #element occurence in fragments filter
+  problem_elements <- c("P", "S", "Cl", "Br", "Si", "O", "N")
+  for (j in problem_elements) {
+    if (j %in% element_definitions) {
+      element_place <- which("Si" == element_definitions)
+      element_checks <-lapply(fragment_tree_list, function(x, y) x[y] > 0, y = element_place)
+      element_checks <- unlist(element_checks)
+      element_checks_sum <- sum(log(fragment_tree_list_intensities[which(element_checks)]))
+      fragment_tree_list_intensities_sum <- sum(log(fragment_tree_list_intensities))
+      score <- element_checks_sum/fragment_tree_list_intensities_sum
+      if (score < 0.1) {
+        element_checks_2 <-lapply(result_counts, function(x, y) x[y] > 0, y = element_place)
+        element_checks_2 <- unlist(element_checks_2)
+        if(any(element_checks_2, na.rm = TRUE)) {
+          delete_result_vector <- c(delete_result_vector, which(element_checks_2))
+        }
+      }
+    }
+  }
+  return(unique(delete_result_vector)) 
+}
+
+heuristic_filtering_for_fragments <- function(result_counts=result_counts, element_definitions=element_definitions) { 
+  delete_result_vector <- NULL
+  #element ratio filter
+  if ("C" %in% element_definitions) {
+    carbon_place <- which("C" == element_definitions)
+    if ("H" %in% element_definitions) {
+      h_place <- which("H" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[h_place]/x[carbon_place]) < 0.2 | (x[h_place]/x[carbon_place]) > 3.2)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("F" %in% element_definitions) {
+      f_place <- which("F" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[f_place]/x[carbon_place]) > 6)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("Cl" %in% element_definitions) {
+      cl_place <- which("Cl" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[cl_place]/x[carbon_place]) > 2)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("Br" %in% element_definitions) {
+      br_place <- which("Br" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[br_place]/x[carbon_place]) > 2)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("N" %in% element_definitions) {
+      n_place <- which("N" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[n_place]/x[carbon_place]) > 1.3)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("O" %in% element_definitions) {
+      o_place <- which("O" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[o_place]/x[carbon_place]) > 1.2)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("P" %in% element_definitions) {
+      p_place <- which("P" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[p_place]/x[carbon_place]) > 0.3)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("S" %in% element_definitions) {
+      s_place <- which("S" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[s_place]/x[carbon_place]) > 0.8)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+    if ("Si" %in% element_definitions) {
+      si_place <- which("Si" == element_definitions)
+      delete_because_ratio <- lapply(result_counts, function(x) (x[si_place]/x[carbon_place]) > 0.5)
+      delete_because_ratio <- unlist(delete_because_ratio)
+      if (any(delete_because_ratio, na.rm = TRUE)) {
+        delete_result_vector <- c(delete_result_vector, which(delete_because_ratio))
+      }
+    }
+  }
+  return(unique(delete_result_vector))
+}
+
