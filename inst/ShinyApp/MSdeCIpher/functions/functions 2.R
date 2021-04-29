@@ -6,21 +6,21 @@ finalfunction <- function(elements_limits = list(c("C",0,50),c("H",0,100),
   for (h in 1:length(file_names)) {
     spectra_input[[h]] <- read.csv(paste("./annotated spectra/", file_names[h], sep =""))
   }
-  #withProgress(message = "Filtering isotopes", value = 0, {
+  withProgress(message = "Filtering isotopes", value = 0, {
   temp_env$n <- length(spectra_input)
   results_isotope_filtered <- lapply(spectra_input, filter_isotopes, mass_tolerance = mass_tolerance)
-  #})
+  })
   #print("isotope filtering done")
   
-  #withProgress(message = "Additional filtering", value = 0, {
+  withProgress(message = "Additional filtering", value = 0, {
     temp_env$n <- length(results_isotope_filtered)
     results_additional_filtered <- lapply(results_isotope_filtered, filter_topx, additional_filter, topx_filter)
-  #})
+  })
   
   temp_env$n <- length(results_additional_filtered)
-  #withProgress(message = "Calculating sum formulas", value = 0, {
+  withProgress(message = "Calculating sum formulas", value = 0, {
   results_annotated <- lapply(results_additional_filtered, build_sum_formula_tree_old_2, mass_tolerance = mass_tolerance, elements_limits = elements_limits)
-  #})
+  })
   dir.create("./annotated spectra results")
   k <- 1
   for(i in file_names) {
@@ -52,7 +52,7 @@ filter_topx <- function(input_table, filter_criterium, topx) {
       output_table <- rbind(output_table, filter_table[which(border_boolean),])
     }
   }
-  #incProgress(1/n)
+  incProgress(1/n)
   return(output_table)
 }
 
@@ -153,7 +153,7 @@ filter_isotopes <- function(table_with_isotopes, mass_tolerance) {
     }
     output <- rbind(output, reduced_result_table)
   }
-  #incProgress(1/n)
+  incProgress(1/n)
   return(output)
 }
 
@@ -163,7 +163,7 @@ filter_isotopes <- function(table_with_isotopes, mass_tolerance) {
 
 #actual version
 build_sum_formula_tree_old_2 <- function(result_table, mass_tolerance, elements_limits) {
-  #incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
+  incProgress(0, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("begin computing spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
   if (any(c("S", "Cl", "Br") %in% element_definitions)) {
     isotope_check_list <- c("S", "Cl", "Br")[which(c("S", "Cl", "Br") %in% element_definitions)]
@@ -307,7 +307,7 @@ build_sum_formula_tree_old_2 <- function(result_table, mass_tolerance, elements_
     }
     new_table <- rbind(new_table, cbind(separated_spectra_groups[[x]], sum_formula_column, probability_column))
   }
-  #incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
+  incProgress(1/n, detail = paste("spectrum", result_table$pcgroup[1]))
   print(paste("finished spectrum", result_table$pcgroup[1], Sys.time(), sep = " "))
   new_table <- intensity_scoring_correction(new_table)
   colnames(new_table) <- c("mz", "rt", "into", "pcgroup", "sum formula", "probability (%)")
